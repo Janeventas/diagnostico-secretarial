@@ -1,423 +1,179 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Diagnóstico de Competencias Digitales — Área Secretarial</title>
-<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
-<style>
-  :root {
-    --bg: #0d0f14;
-    --surface: #161921;
-    --surface2: #1e2230;
-    --border: #2a3045;
-    --accent: #c9a84c;
-    --accent2: #e8c96a;
-    --text: #eef0f6;
-    --muted: #8a90a8;
-    --correct: #4caf82;
-    --wrong: #e05c5c;
-    --warn: #e8903a;
-    --radius: 12px;
-  }
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
-  .screen { display: none; }
-  .screen.active { display: flex; flex-direction: column; min-height: 100vh; }
+// ══════════════════════════════════════════════════════
+//  GOOGLE APPS SCRIPT — Diagnóstico Secretarial
+//  Pega TODO este código en tu proyecto de Apps Script
+// ══════════════════════════════════════════════════════
 
-  /* COVER */
-  #cover {
-    background: radial-gradient(ellipse at 20% 50%, #1a2040 0%, #0d0f14 60%);
-    justify-content: center; align-items: center; text-align: center; padding: 40px 24px; position: relative; overflow: hidden;
-  }
-  #cover::before {
-    content: ''; position: absolute; inset: 0;
-    background: repeating-linear-gradient(45deg,transparent,transparent 60px,rgba(201,168,76,.03) 60px,rgba(201,168,76,.03) 61px);
-    pointer-events: none;
-  }
-  .cover-inner { max-width: 640px; position: relative; z-index: 1; }
-  .badge { display: inline-block; background: rgba(201,168,76,.15); border: 1px solid rgba(201,168,76,.35); color: var(--accent2); font-size: 11px; font-weight: 600; letter-spacing: 3px; text-transform: uppercase; padding: 6px 18px; border-radius: 100px; margin-bottom: 28px; }
-  .cover-title { font-family: 'Playfair Display', serif; font-size: clamp(32px,6vw,56px); font-weight: 900; line-height: 1.1; color: var(--text); margin-bottom: 20px; }
-  .cover-title span { color: var(--accent); }
-  .cover-desc { color: var(--muted); font-size: 16px; line-height: 1.7; margin-bottom: 40px; }
-  .cover-meta { display: flex; gap: 24px; justify-content: center; flex-wrap: wrap; margin-bottom: 44px; }
-  .meta-item { display: flex; align-items: center; gap: 8px; background: var(--surface); border: 1px solid var(--border); padding: 10px 20px; border-radius: 100px; font-size: 13px; color: var(--muted); }
-  .field-group { display: flex; flex-direction: column; gap: 14px; margin-bottom: 32px; text-align: left; }
-  .field label { display: block; font-size: 12px; font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase; color: var(--accent); margin-bottom: 8px; }
-  .field input, .field select { width: 100%; background: var(--surface); border: 1px solid var(--border); color: var(--text); font-family: 'DM Sans', sans-serif; font-size: 15px; padding: 13px 16px; border-radius: var(--radius); outline: none; transition: border-color .2s; }
-  .field input:focus, .field select:focus { border-color: var(--accent); }
-  .field select option { background: var(--surface2); }
-  .btn-primary { background: linear-gradient(135deg, var(--accent), var(--accent2)); color: #0d0f14; font-family: 'DM Sans', sans-serif; font-size: 15px; font-weight: 700; padding: 15px 40px; border: none; border-radius: 100px; cursor: pointer; letter-spacing: .5px; transition: transform .15s, box-shadow .15s; }
-  .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(201,168,76,.3); }
-  .btn-primary:disabled { opacity: .45; cursor: not-allowed; transform: none; }
+const SHEET_NAME = 'Resultados'; // Nombre de la hoja dentro de tu Google Sheets
 
-  /* QUIZ */
-  #quiz { background: var(--bg); }
-  .quiz-header { position: sticky; top: 0; z-index: 100; background: rgba(13,15,20,.95); backdrop-filter: blur(12px); border-bottom: 1px solid var(--border); padding: 14px 24px; display: flex; align-items: center; gap: 16px; }
-  .quiz-info { flex: 1; }
-  .quiz-title-sm { font-size: 13px; font-weight: 600; color: var(--accent); letter-spacing: .5px; }
-  .progress-bar-wrap { height: 4px; background: var(--surface2); border-radius: 4px; overflow: hidden; margin-top: 6px; }
-  .progress-bar { height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent2)); border-radius: 4px; transition: width .4s ease; }
-  .timer-box { display: flex; align-items: center; gap: 8px; background: var(--surface); border: 1px solid var(--border); padding: 8px 16px; border-radius: 100px; font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums; min-width: 90px; justify-content: center; }
-  .timer-box.warn { border-color: var(--warn); color: var(--warn); }
-  .timer-box.danger { border-color: var(--wrong); color: var(--wrong); animation: pulse .8s infinite; }
-  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.6} }
-  .q-counter { font-size: 12px; color: var(--muted); white-space: nowrap; }
-  .quiz-body { flex: 1; overflow-y: auto; padding: 32px 24px 80px; }
-  .section-header { text-align: center; padding: 28px 0 20px; margin-bottom: 24px; border-bottom: 1px solid var(--border); }
-  .section-tag { display: inline-block; background: rgba(201,168,76,.12); border: 1px solid rgba(201,168,76,.3); color: var(--accent); font-size: 11px; letter-spacing: 2.5px; text-transform: uppercase; font-weight: 600; padding: 5px 16px; border-radius: 100px; margin-bottom: 12px; }
-  .section-title { font-family: 'Playfair Display', serif; font-size: 22px; font-weight: 700; }
-  .question-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 22px 24px; margin-bottom: 18px; max-width: 780px; margin-left: auto; margin-right: auto; }
-  .question-card.answered { border-color: rgba(201,168,76,.3); }
-  .q-num { font-size: 11px; font-weight: 600; color: var(--accent); letter-spacing: 1px; margin-bottom: 10px; }
-  .q-text { font-size: 15px; line-height: 1.65; color: var(--text); margin-bottom: 18px; font-weight: 500; }
-  .q-note { font-size: 12px; color: var(--muted); font-style: italic; margin-top: -10px; margin-bottom: 16px; }
-  .options { display: flex; flex-direction: column; gap: 9px; }
-  .opt { display: flex; align-items: flex-start; gap: 12px; padding: 12px 16px; background: var(--surface2); border: 1px solid var(--border); border-radius: 9px; cursor: pointer; transition: all .15s; font-size: 14px; line-height: 1.5; color: var(--text); }
-  .opt:hover { border-color: var(--accent); background: rgba(201,168,76,.07); }
-  .opt.selected { border-color: var(--accent); background: rgba(201,168,76,.12); }
-  .opt .letter { width: 24px; height: 24px; border-radius: 50%; border: 1.5px solid var(--border); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; flex-shrink: 0; margin-top: 1px; color: var(--muted); transition: all .15s; }
-  .opt.selected .letter { border-color: var(--accent); color: var(--accent); background: rgba(201,168,76,.15); }
-  .q-type-multi .q-num::after { content: ' · SELECCIÓN MÚLTIPLE'; }
-  .scale-options { display: flex; gap: 8px; flex-wrap: wrap; }
-  .scale-btn { flex: 1; min-width: 40px; padding: 10px 6px; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; cursor: pointer; text-align: center; font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 600; color: var(--muted); transition: all .15s; }
-  .scale-btn:hover { border-color: var(--accent); color: var(--accent); }
-  .scale-btn.selected { border-color: var(--accent); background: rgba(201,168,76,.15); color: var(--accent2); }
-  .scale-labels { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); margin-top: 6px; }
-  .quiz-footer { position: sticky; bottom: 0; background: rgba(13,15,20,.97); border-top: 1px solid var(--border); padding: 16px 24px; display: flex; justify-content: space-between; align-items: center; gap: 12px; }
-  .answered-count { font-size: 13px; color: var(--muted); }
-  .answered-count strong { color: var(--text); }
-  .btn-submit { background: linear-gradient(135deg, var(--accent), var(--accent2)); color: #0d0f14; font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 700; padding: 12px 30px; border: none; border-radius: 100px; cursor: pointer; transition: all .15s; }
-  .btn-submit:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(201,168,76,.3); }
-  .btn-submit:disabled { opacity: .4; cursor: not-allowed; transform: none; }
-
-  /* SENDING OVERLAY */
-  #sending-overlay { display: none; position: fixed; inset: 0; background: rgba(13,15,20,.92); z-index: 9999; justify-content: center; align-items: center; flex-direction: column; gap: 20px; text-align: center; }
-  #sending-overlay.active { display: flex; }
-  .spinner { width: 48px; height: 48px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 1s linear infinite; }
-  @keyframes spin { to { transform: rotate(360deg); } }
-  .sending-msg { font-size: 16px; color: var(--muted); }
-  .error-box { background: rgba(224,92,92,.1); border: 1px solid var(--wrong); border-radius: var(--radius); padding: 20px 28px; max-width: 380px; }
-  .error-box h3 { color: var(--wrong); margin-bottom: 8px; }
-  .error-box p { font-size: 13px; color: var(--muted); line-height: 1.6; }
-  .btn-retry { margin-top: 14px; background: none; border: 1px solid var(--wrong); color: var(--wrong); font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 600; padding: 9px 22px; border-radius: 100px; cursor: pointer; }
-
-  /* THANKYOU */
-  #thankyou { justify-content: center; align-items: center; text-align: center; padding: 60px 24px; background: radial-gradient(ellipse at center, #16213a 0%, #0d0f14 70%); }
-  .ty-icon { font-size: 64px; margin-bottom: 24px; animation: floatY 3s ease-in-out infinite; }
-  @keyframes floatY { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-12px)} }
-  .ty-title { font-family: 'Playfair Display', serif; font-size: 36px; font-weight: 900; margin-bottom: 14px; }
-  .ty-msg { color: var(--muted); font-size: 16px; line-height: 1.7; max-width: 440px; }
-  .ty-check { display: inline-flex; align-items: center; gap: 8px; margin-top: 28px; background: rgba(76,175,130,.1); border: 1px solid rgba(76,175,130,.3); color: var(--correct); font-size: 13px; font-weight: 600; padding: 10px 20px; border-radius: 100px; }
-
-  @media(max-width:500px){
-    .cover-meta { gap: 12px; }
-    .quiz-header { padding: 12px 14px; }
-    .quiz-body { padding: 20px 14px 80px; }
-    .quiz-footer { padding: 12px 14px; }
-    .question-card { padding: 16px 16px; }
-  }
-</style>
-</head>
-<body>
-
-<!-- SENDING OVERLAY -->
-<div id="sending-overlay">
-  <div id="sending-spinner">
-    <div class="spinner"></div>
-    <p class="sending-msg">Enviando tus respuestas…</p>
-  </div>
-  <div id="sending-error" class="error-box" style="display:none">
-    <h3>⚠️ Error al enviar</h3>
-    <p>No se pudo conectar con el servidor. Verifica tu conexión a internet e inténtalo de nuevo.</p>
-    <button class="btn-retry" onclick="retrySubmit()">Reintentar</button>
-  </div>
-</div>
-
-<!-- COVER -->
-<div id="cover" class="screen active">
-  <div class="cover-inner">
-    <div class="badge">Evaluación Diagnóstica</div>
-    <h1 class="cover-title">Competencias<br><span>Secretariales</span><br>Digitales</h1>
-    <p class="cover-desc">Diagnóstico de habilidades en procesos secretariales, Google Drive, Google Sheets e inteligencia artificial. Tu información ayudará a personalizar la sesión de trabajo presencial.</p>
-    <div class="cover-meta">
-      <div class="meta-item">⏱ 10 minutos</div>
-      <div class="meta-item">📋 30 preguntas</div>
-      <div class="meta-item">🔒 Respuestas privadas</div>
-    </div>
-    <div class="field-group">
-      <div class="field">
-        <label>Nombre completo</label>
-        <input type="text" id="inp-name" placeholder="Ej. María González López" autocomplete="off">
-      </div>
-      <div class="field">
-        <label>Área / Departamento</label>
-        <select id="inp-area">
-          <option value="">— Selecciona tu área —</option>
-          <option>Dirección General</option>
-          <option>Recursos Humanos</option>
-          <option>Finanzas y Contabilidad</option>
-          <option>Jurídico</option>
-          <option>Comunicación Social</option>
-          <option>Planeación y Proyectos</option>
-          <option>Servicios Administrativos</option>
-          <option>Tecnologías de Información</option>
-          <option>Otra área</option>
-        </select>
-      </div>
-      <div class="field">
-        <label>Años de experiencia en el área</label>
-        <select id="inp-exp">
-          <option value="">— Selecciona —</option>
-          <option>Menos de 1 año</option>
-          <option>1 – 3 años</option>
-          <option>3 – 5 años</option>
-          <option>5 – 10 años</option>
-          <option>Más de 10 años</option>
-        </select>
-      </div>
-    </div>
-    <button class="btn-primary" id="btn-start" onclick="startQuiz()" disabled>Iniciar evaluación →</button>
-  </div>
-</div>
-
-<!-- QUIZ -->
-<div id="quiz" class="screen">
-  <div class="quiz-header">
-    <div class="quiz-info">
-      <div class="quiz-title-sm">Diagnóstico · <span id="hdr-section">Sección 1</span></div>
-      <div class="progress-bar-wrap"><div class="progress-bar" id="progress-bar" style="width:0%"></div></div>
-    </div>
-    <div class="q-counter" id="q-counter">0 / 30</div>
-    <div class="timer-box" id="timer">10:00</div>
-  </div>
-  <div class="quiz-body" id="quiz-body"></div>
-  <div class="quiz-footer">
-    <div class="answered-count">Respondidas: <strong id="ans-count">0</strong> / 30</div>
-    <button class="btn-submit" id="btn-submit" onclick="submitQuiz()" disabled>Enviar evaluación ✓</button>
-  </div>
-</div>
-
-<!-- THANK YOU -->
-<div id="thankyou" class="screen">
-  <div>
-    <div class="ty-icon">✅</div>
-    <h2 class="ty-title">¡Evaluación enviada!</h2>
-    <p class="ty-msg">Gracias por completar el diagnóstico. Tus respuestas han sido registradas y el facilitador las revisará antes de la sesión presencial.</p>
-    <div class="ty-check">☁️ Guardado en Google Sheets</div>
-  </div>
-</div>
-
-<script>
-// ══════════════════════════════════════
-// ⚙️  CONFIGURACIÓN — SOLO CAMBIA ESTO
-// ══════════════════════════════════════
-const SCRIPT_URL = 'PEGA_AQUI_TU_URL_DE_APPS_SCRIPT';
-// Ejemplo: 'https://script.google.com/macros/s/AKfycby.../exec'
-// ══════════════════════════════════════
-
-const TIMER_SECONDS = 600;
-const SECTIONS = [
-  {
-    id:'proc', title:'📂 Procesos Secretariales', tag:'SECCIÓN 1',
-    questions:[
-      {id:'p1',type:'single',text:'Al recibir un oficio que requiere respuesta en 24 horas, ¿cuál es tu procedimiento habitual?',opts:['Lo registro en un cuaderno y espero indicaciones de mi jefe','Lo capturo en un sistema de control, notifico de inmediato y hago seguimiento','Lo entrego físicamente a quien corresponde sin registro adicional','Envío un correo general al área para que alguien lo atienda']},
-      {id:'p2',type:'single',text:'¿Qué elementos debe contener obligatoriamente un oficio de respuesta institucional?',opts:['Solo la firma y el número de oficio referido','Membrete, folio, fecha, destinatario, cuerpo, firma y sello','Cualquier formato siempre que el contenido sea claro','Solo fecha, asunto y firma del jefe inmediato']},
-      {id:'p3',type:'single',text:'¿Cuál es la forma correcta de redactar el asunto en un memorándum interno?',opts:['Escribir todo el texto del mensaje como asunto','Una frase breve y específica que describa el contenido (máx. 10 palabras)','El nombre del destinatario y la fecha','El asunto es opcional en comunicaciones internas']},
-      {id:'p4',type:'scale',text:'¿Qué tan cómodo/a te sientes manejando múltiples agendas ejecutivas de forma simultánea?',scale:['1','2','3','4','5'],lo:'Nada cómodo/a',hi:'Muy cómodo/a'},
-      {id:'p5',type:'single',text:'Al organizar un archivo físico o digital, ¿qué criterio utilizas principalmente?',opts:['Orden de llegada sin clasificación temática','Clasificación alfanumérica con código de área y año','Solo por nombre del remitente','No tengo un criterio establecido']},
-      {id:'p6',type:'single',text:'Una "cadena de custodia documental" se refiere a:',opts:['El tiempo que tarda un documento en circular entre áreas','El registro cronológico de quién recibió, procesó y archivó un documento','El sello oficial que valida un documento','La firma del director en todos los documentos']},
-      {id:'p7',type:'multi',text:'¿Cuáles de los siguientes elementos conforman un acta de reunión bien estructurada?',opts:['Lista de asistentes','Orden del día','Acuerdos con responsable y fecha límite','Opiniones personales no oficiales','Hora de inicio y término','Número de folio o acta']},
-    ]
-  },
-  {
-    id:'gdrive', title:'☁️ Google Drive', tag:'SECCIÓN 2',
-    questions:[
-      {id:'g1',type:'single',text:'¿Cuál es la diferencia entre "Compartir con enlace" (ver) y "Compartir con enlace" (editar) en Google Drive?',opts:['No hay diferencia, ambos permiten lo mismo','Ver solo permite leer; editar permite modificar el contenido','Editar solo funciona con archivos de Google','Solo usuarios con cuenta Google pueden usar el enlace de edición']},
-      {id:'g2',type:'single',text:'Tu jefe te pide una carpeta compartida donde él pueda ver pero NO modificar los archivos. ¿Qué permisos asignas?',opts:['Editor','Lector','Comentador','Propietario']},
-      {id:'g3',type:'single',text:'¿Qué sucede cuando eliminas un archivo de una carpeta compartida de la que NO eres propietario?',opts:['El archivo se elimina para todos los colaboradores','El archivo solo se elimina de tu vista, el propietario lo conserva','El archivo se mueve automáticamente a "Archivados"','Recibes un error; no puedes eliminar archivos compartidos']},
-      {id:'g4',type:'scale',text:'¿Qué tan eficientemente organizas carpetas y subcarpetas en Google Drive para proyectos de tu área?',scale:['1','2','3','4','5'],lo:'No lo uso',hi:'Experto/a'},
-      {id:'g5',type:'single',text:'¿Para qué sirve la opción "Hacer una copia" en Google Drive?',opts:['Duplica el archivo y lo guarda en la misma carpeta sin afectar el original','Mueve el archivo a otra carpeta','Crea un acceso directo al archivo original','Comparte el archivo con otro usuario']},
-      {id:'g6',type:'multi',text:'¿Cuáles de las siguientes acciones puedes hacer desde Google Drive SIN abrir el archivo?',opts:['Renombrar el archivo','Cambiar permisos de acceso','Editar el contenido del documento','Ver el historial de versiones','Descargar el archivo','Mover a otra carpeta']},
-      {id:'g7',type:'single',text:'Necesitas que un colaborador externo (sin cuenta Google) revise un PDF confidencial. ¿Cuál es la práctica más segura?',opts:['Enviar el PDF directamente por WhatsApp','Compartir solo con su correo con permiso de solo lectura y fecha de vencimiento','Subir a Drive con acceso público y enviarle el enlace','Imprimir y entregar personalmente']},
-    ]
-  },
-  {
-    id:'gsheets', title:'📊 Google Sheets', tag:'SECCIÓN 3',
-    questions:[
-      {id:'s1',type:'single',text:'¿Cuál fórmula usarías para sumar solo los valores de la columna B donde la columna A diga "Pendiente"?',opts:['=SUMA(B:B)','=SUMAR.SI(A:A,"Pendiente",B:B)','=CONTAR.SI(A:A,"Pendiente")','=BUSCARV("Pendiente",A:B,2,0)']},
-      {id:'s2',type:'single',text:'¿Qué hace la función =BUSCARV(A2, Hoja2!A:C, 3, FALSO)?',opts:['Busca el valor de A2 en la columna A de Hoja2 y devuelve el dato de la columna C','Suma las columnas A y C de Hoja2','Cuenta cuántas veces aparece A2 en Hoja2','Mueve la fila que contiene A2 a la tercera posición']},
-      {id:'s3',type:'scale',text:'¿Con qué frecuencia usas tablas dinámicas (pivot tables) para analizar datos en tu trabajo?',scale:['1','2','3','4','5'],lo:'Nunca las uso',hi:'Las uso con frecuencia'},
-      {id:'s4',type:'single',text:'Tienes una lista de 500 registros. ¿Cómo fijarías la fila de encabezados para que siempre sea visible?',opts:['Aplicar formato en negrita a la fila 1','Ir a Ver → Inmovilizar → 1 fila','Seleccionar la fila y usar Ctrl+F','No es posible en Google Sheets']},
-      {id:'s5',type:'single',text:'¿Para qué sirve la validación de datos en una celda?',opts:['Proteger el archivo con contraseña','Restringir el tipo o rango de valores que se pueden ingresar','Formatear automáticamente los números','Enviar una alerta por correo al modificar la celda']},
-      {id:'s6',type:'multi',text:'¿Cuáles de estos atajos de teclado conoces y usas en Google Sheets?',opts:['Ctrl+Z (deshacer)','Ctrl+Shift+V (pegar solo valores)','Ctrl+Alt+V (pegado especial)','Ctrl+Enter (rellenar rango)','Ctrl+Shift+L (aplicar filtro)','Alt+= (autosuma)']},
-      {id:'s7',type:'single',text:'¿Qué ventaja tiene usar "Formato condicional" en un reporte de seguimiento?',opts:['Permite imprimir en color automáticamente','Resalta visualmente celdas según condiciones (ej. vencidas en rojo, completadas en verde)','Suma automáticamente los valores resaltados','Protege las celdas de edición no autorizada']},
-    ]
-  },
-  {
-    id:'ia', title:'🤖 Inteligencia Artificial', tag:'SECCIÓN 4',
-    questions:[
-      {id:'i1',type:'multi',text:'¿Cuáles de las siguientes herramientas de IA conoces o has utilizado?',opts:['ChatGPT (OpenAI)','Claude (Anthropic)','Gemini (Google)','Copilot (Microsoft)','Perplexity AI','Canva IA / Magic Write','NotebookLM','Ninguna de las anteriores']},
-      {id:'i2',type:'single',text:'¿Para qué tarea del área secretarial crees que la IA sería MÁS útil en tu trabajo cotidiano?',opts:['Redactar borradores de oficios, reportes o correos','Crear tablas y análisis de datos automáticamente','Transcribir reuniones y generar minutas','No veo utilidad práctica en mi trabajo']},
-      {id:'i3',type:'single',text:'Al pedirle a una IA que redacte un oficio, ¿qué práctica genera mejores resultados?',opts:['Escribir solo "haz un oficio" sin más detalles','Dar contexto: propósito, destinatario, tono, información clave y longitud deseada','Pedirle que lo haga "como un profesional" sin detalles adicionales','Copiar un oficio anterior y pedirle que lo corrija ortográficamente']},
-      {id:'i4',type:'scale',text:'¿Qué tan seguido incorporas herramientas de IA en tus actividades laborales diarias?',scale:['1','2','3','4','5'],lo:'Nunca',hi:'Todos los días'},
-      {id:'i5',type:'single',text:'¿Qué es una "alucinación" en el contexto de modelos de IA como ChatGPT?',opts:['Un error visual en la interfaz de la herramienta','Cuando la IA genera información convincente pero falsa o inventada','Un tipo de respuesta creativa para textos literarios','El nombre del proceso de aprendizaje automático']},
-      {id:'i6',type:'single',text:'Usas IA para resumir un documento confidencial de tu institución. ¿Cuál es la práctica más prudente?',opts:['Subir directamente el archivo con todos los datos sensibles','Reemplazar datos sensibles por genéricos antes de procesar con IA pública','No hay riesgo, las herramientas de IA son completamente privadas','Pedir permiso solo si el documento tiene clasificación "Top Secret"']},
-      {id:'i7',type:'single',text:'¿Cuál de los siguientes es un uso INAPROPIADO de la IA en el ámbito secretarial?',opts:['Pedir ayuda para estructurar una presentación','Generar opciones de respuesta para una solicitud ciudadana sin revisión humana y firmarla directamente','Resumir actas extensas para identificar acuerdos clave','Buscar formatos o plantillas de documentos oficiales']},
-      {id:'i8',type:'multi',text:'¿En cuáles de las siguientes áreas te gustaría recibir capacitación?',opts:['Uso avanzado de Google Drive y Sheets','Redacción asistida por IA','Automatización de tareas repetitivas','Seguridad de la información digital','Gestión documental electrónica','Herramientas de IA para presentaciones','Gestión de agenda digital']},
-    ]
-  }
-];
-
-const ALL_QUESTIONS = SECTIONS.flatMap(s => s.questions.map(q => ({...q, section: s.id})));
-const TOTAL_Q = ALL_QUESTIONS.length;
-
-let responses = {};
-let multiResp = {};
-let timerInterval = null;
-let timeLeft = TIMER_SECONDS;
-let participantInfo = {};
-let lastPayload = null;
-
-['inp-name','inp-area','inp-exp'].forEach(id => {
-  document.getElementById(id).addEventListener('input', validateCover);
-  document.getElementById(id).addEventListener('change', validateCover);
-});
-function validateCover(){
-  const n = document.getElementById('inp-name').value.trim();
-  const a = document.getElementById('inp-area').value;
-  const e = document.getElementById('inp-exp').value;
-  document.getElementById('btn-start').disabled = !(n && a && e);
-}
-
-function buildQuiz(){
-  const body = document.getElementById('quiz-body');
-  body.innerHTML = '';
-  SECTIONS.forEach(sec => {
-    const sh = document.createElement('div');
-    sh.className = 'section-header';
-    sh.innerHTML = `<div class="section-tag">${sec.tag}</div><h2 class="section-title">${sec.title}</h2>`;
-    body.appendChild(sh);
-    sec.questions.forEach(q => {
-      const globalIdx = ALL_QUESTIONS.findIndex(x => x.id === q.id) + 1;
-      const card = document.createElement('div');
-      card.className = 'question-card' + (q.type==='multi'?' q-type-multi':'');
-      card.id = 'qcard-'+q.id;
-      let inner = `<div class="q-num">Pregunta ${globalIdx}</div><div class="q-text">${q.text}</div>`;
-      if(q.type==='single'||q.type==='multi'){
-        if(q.type==='multi') inner += `<div class="q-note">Puedes seleccionar más de una opción.</div>`;
-        inner += `<div class="options" id="opts-${q.id}">`;
-        q.opts.forEach((o,oi) => {
-          inner += `<div class="opt" data-qid="${q.id}" data-oi="${oi}" onclick="selectOpt('${q.id}',${oi},'${q.type}')"><div class="letter">${'ABCDEFGH'[oi]}</div><span>${o}</span></div>`;
-        });
-        inner += `</div>`;
-      } else if(q.type==='scale'){
-        inner += `<div class="scale-options" id="opts-${q.id}">`;
-        q.scale.forEach(v => { inner += `<button class="scale-btn" data-qid="${q.id}" data-v="${v}" onclick="selectScale('${q.id}','${v}')">${v}</button>`; });
-        inner += `</div><div class="scale-labels"><span>${q.lo}</span><span>${q.hi}</span></div>`;
-      }
-      card.innerHTML = inner;
-      body.appendChild(card);
-    });
-  });
-  ALL_QUESTIONS.filter(q=>q.type==='multi').forEach(q=>{ multiResp[q.id]=new Set(); });
-}
-
-function selectOpt(qId, oi, type){
-  if(type==='single'){
-    responses[qId] = oi;
-    document.querySelectorAll(`[data-qid="${qId}"]`).forEach((el,idx) => el.classList.toggle('selected', idx===oi));
-    document.getElementById('qcard-'+qId).classList.add('answered');
-  } else {
-    const set = multiResp[qId];
-    if(set.has(oi)) set.delete(oi); else set.add(oi);
-    responses[qId] = [...set];
-    document.querySelectorAll(`[data-qid="${qId}"]`).forEach((el,idx) => el.classList.toggle('selected', set.has(idx)));
-    document.getElementById('qcard-'+qId).classList.toggle('answered', set.size>0);
-  }
-  updateCounts();
-}
-
-function selectScale(qId, val){
-  responses[qId] = val;
-  document.querySelectorAll(`[data-qid="${qId}"]`).forEach(el => el.classList.toggle('selected', el.dataset.v===val));
-  document.getElementById('qcard-'+qId).classList.add('answered');
-  updateCounts();
-}
-
-function updateCounts(){
-  const answered = Object.keys(responses).length;
-  document.getElementById('ans-count').textContent = answered;
-  document.getElementById('q-counter').textContent = answered + ' / ' + TOTAL_Q;
-  document.getElementById('progress-bar').style.width = (answered/TOTAL_Q*100)+'%';
-  document.getElementById('btn-submit').disabled = answered < Math.floor(TOTAL_Q * 0.7);
-}
-
-function startTimer(){
-  timerInterval = setInterval(() => {
-    timeLeft--;
-    const m = Math.floor(timeLeft/60).toString().padStart(2,'0');
-    const s = (timeLeft%60).toString().padStart(2,'0');
-    const el = document.getElementById('timer');
-    el.textContent = m+':'+s;
-    el.classList.toggle('warn', timeLeft<=180 && timeLeft>60);
-    el.classList.toggle('danger', timeLeft<=60);
-    if(timeLeft<=0){ clearInterval(timerInterval); submitQuiz(); }
-  }, 1000);
-}
-
-function showScreen(id){
-  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-  document.getElementById(id).classList.add('active');
-}
-
-function startQuiz(){
-  participantInfo = {
-    name: document.getElementById('inp-name').value.trim(),
-    area: document.getElementById('inp-area').value,
-    exp: document.getElementById('inp-exp').value,
-    ts: new Date().toLocaleString('es-MX')
-  };
-  buildQuiz();
-  showScreen('quiz');
-  startTimer();
-  updateCounts();
-}
-
-async function submitQuiz(){
-  clearInterval(timerInterval);
-  const payload = {
-    participant: participantInfo,
-    responses: {...responses},
-    multiResp: Object.fromEntries(Object.entries(multiResp).map(([k,v])=>[k,[...v]])),
-    timeUsed: TIMER_SECONDS - timeLeft
-  };
-  lastPayload = payload;
-  await sendToSheets(payload);
-}
-
-async function sendToSheets(payload){
-  document.getElementById('sending-spinner').style.display = 'flex';
-  document.getElementById('sending-error').style.display = 'none';
-  document.getElementById('sending-overlay').classList.add('active');
+function doPost(e) {
   try {
-    await fetch(SCRIPT_URL, {
-      method: 'POST',
-      mode: 'no-cors',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-    document.getElementById('sending-overlay').classList.remove('active');
-    showScreen('thankyou');
-  } catch(err) {
-    document.getElementById('sending-spinner').style.display = 'none';
-    document.getElementById('sending-error').style.display = 'block';
+    const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAME);
+    const data = JSON.parse(e.postData.contents);
+
+    // Si la hoja está vacía, crear encabezados
+    if (sheet.getLastRow() === 0) {
+      const headers = buildHeaders();
+      sheet.appendRow(headers);
+      sheet.getRange(1, 1, 1, headers.length).setFontWeight('bold').setBackground('#1a2040').setFontColor('#c9a84c');
+      sheet.setFrozenRows(1);
+    }
+
+    const row = buildRow(data);
+    sheet.appendRow(row);
+
+    return ContentService
+      .createTextOutput(JSON.stringify({ status: 'ok' }))
+      .setMimeType(ContentService.MimeType.JSON);
+
+  } catch (err) {
+    return ContentService
+      .createTextOutput(JSON.stringify({ status: 'error', message: err.message }))
+      .setMimeType(ContentService.MimeType.JSON);
   }
 }
 
-function retrySubmit(){
-  if(lastPayload) sendToSheets(lastPayload);
+// Permite pruebas desde el navegador (GET)
+function doGet(e) {
+  return ContentService
+    .createTextOutput(JSON.stringify({ status: 'online', message: 'Script activo ✓' }))
+    .setMimeType(ContentService.MimeType.JSON);
 }
-</script>
-</body>
-</html>
+
+function buildHeaders() {
+  return [
+    'Fecha y Hora',
+    'Nombre',
+    'Área',
+    'Experiencia',
+    'Tiempo usado (seg)',
+    '% General',
+    // Secciones
+    'Procesos Secretariales %',
+    'Google Drive %',
+    'Google Sheets %',
+    'Inteligencia Artificial %',
+    // Preguntas individuales (texto corto)
+    'P1 - Oficio urgente (procedimiento)',
+    'P2 - Elementos de un oficio',
+    'P3 - Redacción de asunto en memorándum',
+    'P4 - Manejo de agendas (1-5)',
+    'P5 - Criterio de archivo',
+    'P6 - Cadena de custodia documental',
+    'P7 - Elementos de acta de reunión',
+    'G1 - Ver vs Editar en Drive',
+    'G2 - Permisos para solo lectura',
+    'G3 - Eliminar archivo compartido',
+    'G4 - Organización en Drive (1-5)',
+    'G5 - Función "Hacer una copia"',
+    'G6 - Acciones sin abrir archivo',
+    'G7 - Compartir con externo de forma segura',
+    'S1 - Fórmula SUMAR.SI',
+    'S2 - Función BUSCARV',
+    'S3 - Uso de tablas dinámicas (1-5)',
+    'S4 - Inmovilizar filas',
+    'S5 - Validación de datos',
+    'S6 - Atajos de teclado conocidos',
+    'S7 - Formato condicional',
+    'I1 - Herramientas de IA conocidas',
+    'I2 - Uso de IA más útil',
+    'I3 - Mejores prácticas con IA',
+    'I4 - Frecuencia de uso de IA (1-5)',
+    'I5 - Qué es una alucinación en IA',
+    'I6 - Privacidad con IA',
+    'I7 - Uso inapropiado de IA',
+    'I8 - Áreas de capacitación deseadas'
+  ];
+}
+
+function buildRow(data) {
+  const p = data.participant;
+  const r = data.responses;
+  const m = data.multiResp || {};
+
+  // Opciones de cada pregunta (para traducir índice a texto)
+  const OPTS = {
+    p1: ['Lo registro en un cuaderno y espero indicaciones','Lo capturo en sistema, notifico y hago seguimiento','Lo entrego físicamente sin registro','Envío correo general al área'],
+    p2: ['Solo firma y número de oficio','Membrete, folio, fecha, destinatario, cuerpo, firma y sello','Cualquier formato si el contenido es claro','Solo fecha, asunto y firma del jefe'],
+    p3: ['Escribir todo el texto como asunto','Frase breve y específica (máx. 10 palabras)','Nombre del destinatario y fecha','El asunto es opcional'],
+    p4: null, // escala
+    p5: ['Orden de llegada sin clasificación','Clasificación alfanumérica con código y año','Solo por nombre del remitente','No tengo criterio establecido'],
+    p6: ['Tiempo que tarda en circular','Registro cronológico de quién recibió y procesó','El sello oficial que valida','La firma del director en todos los docs'],
+    p7: ['Asistentes','Orden del día','Acuerdos con responsable y fecha','Opiniones personales','Hora de inicio y término','Número de folio'],
+    g1: ['No hay diferencia','Ver=leer; Editar=modificar','Editar solo funciona con archivos Google','Solo usuarios con cuenta Google'],
+    g2: ['Editor','Lector','Comentador','Propietario'],
+    g3: ['Se elimina para todos','Solo de tu vista, propietario lo conserva','Se mueve a Archivados','Recibes un error'],
+    g4: null,
+    g5: ['Duplica sin afectar el original','Mueve a otra carpeta','Crea acceso directo','Comparte con otro usuario'],
+    g6: ['Renombrar','Cambiar permisos','Editar contenido','Ver historial de versiones','Descargar','Mover a otra carpeta'],
+    g7: ['Enviar por WhatsApp','Compartir solo con correo + solo lectura + vencimiento','Acceso público y enviar enlace','Imprimir y entregar'],
+    s1: ['=SUMA(B:B)','=SUMAR.SI(A:A,"Pendiente",B:B)','=CONTAR.SI(A:A,"Pendiente")','=BUSCARV(...)'],
+    s2: ['Busca A2 en Hoja2 col A y devuelve col C','Suma columnas A y C','Cuenta apariciones de A2','Mueve la fila a tercera posición'],
+    s3: null,
+    s4: ['Formato negrita en fila 1','Ver → Inmovilizar → 1 fila','Ctrl+F','No es posible'],
+    s5: ['Proteger con contraseña','Restringir tipo/rango de valores','Formatear números automáticamente','Enviar alerta por correo'],
+    s6: ['Ctrl+Z','Ctrl+Shift+V (pegar valores)','Ctrl+Alt+V (pegado especial)','Ctrl+Enter','Ctrl+Shift+L (filtro)','Alt+= (autosuma)'],
+    s7: ['Imprimir en color automáticamente','Resalta celdas según condiciones','Suma valores resaltados','Protege celdas de edición'],
+    i1: ['ChatGPT','Claude','Gemini','Copilot','Perplexity','Canva IA','NotebookLM','Ninguna'],
+    i2: ['Redactar borradores de documentos','Crear tablas y análisis','Transcribir reuniones y minutas','No veo utilidad'],
+    i3: ['Escribir solo "haz un oficio"','Dar contexto completo','Pedirle que lo haga "como profesional"','Copiar oficio anterior'],
+    i4: null,
+    i5: ['Error visual en la interfaz','Información convincente pero falsa','Respuesta creativa para literarios','Proceso de aprendizaje automático'],
+    i6: ['Subir directamente con datos sensibles','Reemplazar datos sensibles antes de usar IA','No hay riesgo, es privado','Pedir permiso solo si es Top Secret'],
+    i7: ['Pedir ayuda para estructurar presentación','Generar respuesta sin revisión humana y firmar','Resumir actas extensas','Buscar formatos y plantillas'],
+    i8: ['Google Drive y Sheets avanzado','Redacción con IA','Automatización','Seguridad digital','Gestión documental','IA para presentaciones','Agenda digital']
+  };
+
+  function resolveAnswer(qId) {
+    const opts = OPTS[qId];
+    if (opts === null) return r[qId] !== undefined ? r[qId] + '/5' : '';
+    const isMulti = Array.isArray(m[qId]) || Array.isArray(r[qId]);
+    if (isMulti) {
+      const arr = m[qId] || r[qId] || [];
+      return arr.map(i => opts[i]).filter(Boolean).join(' | ');
+    }
+    const idx = r[qId];
+    return idx !== undefined ? opts[idx] : '';
+  }
+
+  // Calcular % por sección
+  const secDefs = {
+    proc: ['p1','p2','p3','p4','p5','p6','p7'],
+    gdrive: ['g1','g2','g3','g4','g5','g6','g7'],
+    gsheets: ['s1','s2','s3','s4','s5','s6','s7'],
+    ia: ['i1','i2','i3','i4','i5','i6','i7','i8']
+  };
+  const secPcts = {};
+  Object.entries(secDefs).forEach(([sec, qIds]) => {
+    let total = 0, count = 0;
+    qIds.forEach(qId => {
+      const opts = OPTS[qId];
+      if (opts === null) {
+        if (r[qId] !== undefined) { total += parseInt(r[qId]) * 20; count++; }
+      } else if (Array.isArray(m[qId]) || Array.isArray(r[qId])) {
+        const arr = m[qId] || r[qId] || [];
+        if (arr.length > 0) { total += 100; count++; }
+      } else {
+        if (r[qId] !== undefined) { total += 100; count++; }
+      }
+    });
+    secPcts[sec] = count > 0 ? Math.round(total / qIds.length) : 0;
+  });
+  const overall = Math.round(Object.values(secPcts).reduce((a, b) => a + b, 0) / 4);
+
+  const allQIds = ['p1','p2','p3','p4','p5','p6','p7','g1','g2','g3','g4','g5','g6','g7','s1','s2','s3','s4','s5','s6','s7','i1','i2','i3','i4','i5','i6','i7','i8'];
+
+  return [
+    p.ts,
+    p.name,
+    p.area,
+    p.exp,
+    data.timeUsed,
+    overall + '%',
+    secPcts.proc + '%',
+    secPcts.gdrive + '%',
+    secPcts.gsheets + '%',
+    secPcts.ia + '%',
+    ...allQIds.map(id => resolveAnswer(id))
+  ];
+}
+
